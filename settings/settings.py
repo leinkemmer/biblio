@@ -69,8 +69,10 @@ def rename_file(file,item):
 		
 		if file != file_new:
 			os.system('mv -n "%s" "%s"'%(file,file_new))
+		return file_new
 	except:
 		print 'could not parse given name number %d properly - retaining original formatting.'%i,traceback.print_exc()
+		return file
 
 # generate a number of keys separated by :, the first key should be unique
 def compute_key(item):

@@ -154,14 +154,19 @@ class Bibdb:
 				print json.dumps(bibitem, indent=4)
 				input = raw_input("Save this item to the database? [y,n]")
 				if input == 'y':
-					self.db += bibitem
+					# rename file
+					try:
+						file_new = rename_file(file, bibitem[0])
+						bibitem[0]['file'] = file_new
+					except:
+						print 'renaming file failed', traceback.print_exc()
+						bibitem[0]['file'] = file
+					# save file
+					self.db += [bibitem[0]]
 					self.save_db()
 					loop = False
 					print 'saved bibliography entry'
-					try:
-						rename_file(file, bibitem[0])
-					except:
-						print 'renaming file failed', traceback.print_exc()
+
 				elif input == 'n':
 					loop = False
 			except Exception as detail:
@@ -170,7 +175,12 @@ class Bibdb:
 	def cleanup_bibliography(self):
 		print 'not yet implemented'
 	def recompute_keys(self):
-		print 'not yet implemented'
+		for i in range(len(self.db)):
+			try:
+				compute_key(self.db[i])
+			except:
+				print 'entry is missing information',traceback.print_exc()
+		self.save_db()
 
 # main function
 if __name__ == "__main__":
@@ -200,7 +210,7 @@ if __name__ == "__main__":
 	elif args.cleanup:
 		db.cleanup_bibliography()
 	elif args.key:
-		db.recompute_key()
+		db.recompute_keys()
 	elif args.bibtex:
 		db.extract_bibtex(args.bibtex[0])
 	elif args.file != None:
