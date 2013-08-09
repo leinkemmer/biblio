@@ -35,7 +35,7 @@ class Bibdb:
 				s = ''
 				authorlist = bibitem['author']
 				for i,dictentry in enumerate(authorlist):
-					s += ', ' if i==0 else ''
+					s += ', ' if i!=0 else ''
 					s += dictentry['given'] + ' ' + dictentry['family'];
 				s += '. ' + bibitem['title'] + '. ' + bibitem['issued']['literal']
 				try: #optional
