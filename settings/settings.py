@@ -41,7 +41,7 @@ def format_bibitem(item):
 		for i,dictentry in enumerate(authorlist):
 			try:
 				givenname = dictentry['given']
-				authorlist[i]['given'] = rule_firstname(givenname)
+				authorlist[i]['given'] = format_firstname(givenname)
 			except:
 				print 'could not parse given name number %d properly - retaining original formatting.'%i
 	except:
@@ -72,25 +72,27 @@ def rename_file(file,item):
 	except:
 		print 'could not parse given name number %d properly - retaining original formatting.'%i,traceback.print_exc()
 
-# generate a number of keys separated by :
+# generate a number of keys separated by :, the first key should be unique
 def compute_key(item):
 	try:
 		m = hashlib.md5()
 
 		# we only use the author list, title, and journal information (including publication date)
-		s = item['author'] + item['title'] + item['issued']['literal']
+		s = str(item['author']) + item['title'] + item['issued']['literal']
 		# these are optional items
 		s += item['journal'] if 'journal' in item else ''
 		s += item['volume'] if 'volume' in item else ''
 		s += item['page'] if 'page' in item else ''
 		# compute md5 hash
-		m.update(json.dumps(item, indent=4))
+		m.update(s)
 		hash = base64.b64encode(m.digest()).replace('=','')
 		# this should be a unique hash
 		item['id'] = item['author'][0]['family'].lower() + item['issued']['literal'] + '-' + hash
+		# simple hash
+		item['id'] += ':' + item['author'][0]['family'].lower() + item['issued']['literal'] 
 		# three digit number as hash (but possibly not unique in some dbs)
 		dig = ( ord(m.digest()[0]) + 256*ord(m.digest()[1]) ) % 1000;
-		item['id'] += ':' + item['author'][0]['family'].lower() + item['issued']['literal'] + '-' + dig
+		item['id'] += ':' + item['author'][0]['family'].lower() + item['issued']['literal'] + '-' + str(dig)
 	except:
-		print 'could not parse bibliography entry - not able to generate key'
+		print 'could not parse bibliography entry - not able to generate key',traceback.print_exc()
 
