@@ -122,8 +122,27 @@ class Bibdb:
 		
 
 	def add_entry_from_file(self,file):
+		# determine text editor used
+		try:
+			editor = environ['EDITOR']
+		except KeyError:
+			editor = 'vim'
 		# get bibtex code from pdf and google scholar
-		bibitem = pdflookup(file, False, FORMAT_BIBTEX)[0]
+		biblist = pdflookup(file, False, FORMAT_BIBTEX)
+		if len(biblist)>0:
+			bibitem = biblist[0]	
+		else:
+			input = raw_input("no record could be deduced from the pdf file. do you want to insert a bibtex entry manually? [y,n]")
+			if input=='y':
+				tmpfile = tempfile.NamedTemporaryFile().name + ".bibtex"
+				system(editor + ' ' + tmpfile)
+				#try:
+				with open(tmpfile, "r") as fh:
+					bibitem = fh.read()
+				#except:
+				#	return
+			else:
+				return
 		# parse bibtex to dictionary format
 		bibitem = clear_comments(bibitem)
 		bibparser = Bibparser(bibitem)
@@ -132,17 +151,12 @@ class Bibdb:
 		# standard formatting rules are applied
 		format_bibitem(bibitem[0])
 		# a key is computed
-		print bibitem[0]
 		compute_key(bibitem[0])
-		print bibitem[0]
+		
 		# allow the user to make modifications
 		tmpfile = tempfile.NamedTemporaryFile().name + ".json"
 		with open(tmpfile, "w") as fh:
 			fh.write(json.dumps(bibitem, indent=4))
-		try:
-			editor = environ['EDITOR']
-		except KeyError:
-			editor = 'vim'
 		# modify and read back the filea
 		loop = True
 		while loop:
@@ -151,6 +165,7 @@ class Bibdb:
 					bibitem = fh.read()
 			try:
 				bibitem = json.loads(bibitem)
+				compute_key(bibitem[0])
 				print json.dumps(bibitem, indent=4)
 				input = raw_input("Save this item to the database? [y,n]")
 				if input == 'y':
