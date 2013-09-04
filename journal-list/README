@@ -1,5 +1,8 @@
-list of some journals (unfortunately no mathematical ones)
+list of some journals (unfortunately no math journals)
 http://jabref.sourceforge.net/journals/journal_abbreviations_general.txt
 
 mathematical journals from the AMS
 http://www.ams.org/msnhtml/annser.csv
+download and save as mathematical-journals-ams.csv in the current directory
+
+Run make-journal-dictionary.py and move the output file called journal-list.dict to the root directory (where biblio.py is located).
