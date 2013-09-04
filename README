@@ -2,7 +2,7 @@ Read journal-list/README and then run ./biblio.py --help
 
 The script uses the following two libraries
 
-ggscholar.py oogle scholar lookup (for pdf files and other searches)
+gscholar.py google scholar lookup (for pdf files and other searches)
 https://github.com/venthur/gscholar
 
 bibtex parser
