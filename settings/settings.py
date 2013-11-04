@@ -1,5 +1,6 @@
 import hashlib, base64, traceback, os 
 
+
 #
 # rule 1:use C. Lubich instead of Christian Lubich
 #	
@@ -20,7 +21,7 @@ def format_firstname(given):
 def find_abbreviation(full_name):
 	abbreviation = ''
 	# ams list
-	with open("/home/lukas/Dropbox/programming/rommie/journal-list.dict") as fh:
+	with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"../journal-list.dict")) as fh:
 		for line in fh:
 			l = line.split(',')
 			if len(l) == 2:
@@ -59,20 +60,25 @@ def format_bibitem(item):
 def rename_file(file,item):
 	try:
 		file_new = ''
-		authorlist = item['author']
-		for i,dictentry in enumerate(authorlist):
-			family_name = dictentry['family'].lower()
-			file_new += family_name + ' '
+		#authorlist = item['author']
+		#for i,dictentry in enumerate(authorlist):
+		#	family_name = dictentry['family'].lower()
+		#	file_new += family_name + ' '
 
-		file_new += item['issued']['literal'] + ' ('
-		file_new += item['title'] + ',' + item['journal'] + ').pdf'
-		
+		#file_new += item['issued']['literal'] + ' ('
+		#file_new += item['title'] + ',' + item['journal'] + ').pdf'
+	
+		file_new += item['id'].split(':')[1]
+		file_new += '.pdf'
+
 		if file != file_new:
 			os.system('mv -n "%s" "%s"'%(file,file_new))
 		return file_new
+	#except:
+		#print 'could not parse given name number %d properly - retaining original formatting.'%i,traceback.print_exc()
+		#return file
 	except:
-		print 'could not parse given name number %d properly - retaining original formatting.'%i,traceback.print_exc()
-		return file
+		print 'could not create filename from %s'%item,traceback.print_exc()
 
 # generate a number of keys separated by :, the first key should be unique
 def compute_key(item):
@@ -88,8 +94,11 @@ def compute_key(item):
 		# compute md5 hash
 		m.update(s)
 		hash = base64.b64encode(m.digest()).replace('=','')
+		hash32 = base64.b32encode(m.digest()).replace('=','')
 		# this should be a unique hash
 		item['id'] = item['author'][0]['family'].lower() + item['issued']['literal'] + '-' + hash
+		# this is unique as well and is valid as a filename
+		item['id'] += ':' + item['author'][0]['family'].lower() + item['issued']['literal'] + '-' + hash32
 		# simple hash
 		item['id'] += ':' + item['author'][0]['family'].lower() + item['issued']['literal'] 
 		# three digit number as hash (but possibly not unique in some dbs)
