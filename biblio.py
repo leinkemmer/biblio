@@ -19,11 +19,11 @@ class Bibdb:
 	db = []
 	def __init__(self):
 		try:
-			file = ''
+			dir= ''
 			# os.path.expanduser is necessary to recognize ~
 			with open(os.path.expanduser('~/.bibliorc')) as fh:
-				file= os.path.expanduser(fh.read().rstrip('\n'))
-			self.bibliography_file = file
+				dir= os.path.expanduser(fh.read().rstrip('\n'))
+			os.chdir(dir)
 		except:
 			pass
 		print 'using bibliography file: %s'%self.bibliography_file
@@ -238,6 +238,7 @@ class Bibdb:
 			pass
 		if match == []:
 			print 'no match found for %s'%key
+			choice = -1
 		elif len(match)==1:
 			choice = 0
 		else:
@@ -247,9 +248,13 @@ class Bibdb:
 			while True:
 				if choice >= 0 and choice < len(match):
 					break
-		print '%s (%s)'%(match[choice]['title'],key)
-		print self.bibentry_to_bibtex(match[choice],True)
-		return match[choice]['file']
+		if choice != -1:
+			print '%s (%s)'%(match[choice]['title'],key)
+			print self.bibentry_to_bibtex(match[choice],True)
+			#return os.path.join(os.path.dirname(self.bibliography_file),match[choice]['file'])
+			return match[choice]['file']
+		else:
+			return ''
 
 	def check_file(self,f):
 		try:
@@ -307,7 +312,8 @@ if __name__ == "__main__":
 		db.rename_files()
 	elif args.open:
 		file = db.lookup_key(args.open[0])
-		os.system('okular "%s" &'%file)
+		if file != '':
+			os.system('okular "%s" &'%file)
 	elif args.bibtex:
 		db.extract_bibtex(args.bibtex[0])
 	elif args.autoadd:
