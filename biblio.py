@@ -17,6 +17,16 @@ from os import environ, system
 class Bibdb:
 	bibliography_file = 'bibliography.json'
 	db = []
+	def __init__(self):
+		try:
+			file = ''
+			# os.path.expanduser is necessary to recognize ~
+			with open(os.path.expanduser('~/.bibliorc')) as fh:
+				file= os.path.expanduser(fh.read().rstrip('\n'))
+			self.bibliography_file = file
+		except:
+			pass
+		print 'using bibliography file: %s'%self.bibliography_file
 	def load_db(self):
 		try:
 			with open(self.bibliography_file) as fh:
@@ -25,6 +35,7 @@ class Bibdb:
 			print 'loaded %d items from file'%len(self.db)
 		except IOError:
 			print 'WARNING: file does not exists. Returning empty list.'
+			print traceback.print_exc()	
 	def save_db(self):
 		text = json.dumps(self.db, indent=4)
 		with open(self.bibliography_file, 'w') as fh:
@@ -123,7 +134,7 @@ class Bibdb:
 				fh.write(self.bibentry_to_bibtex(item) + '\n')
 		
 
-	def add_entry_from_file(self,file,lookupscholar):
+	def add_entry_from_file(self,file,lookupscholar=True):
 		# determine text editor used
 		try:
 			editor = environ['EDITOR']
@@ -282,6 +293,7 @@ if __name__ == "__main__":
 			action='store_true', default=False)
 
 	args = parser.parse_args()
+
 	db = Bibdb()
 	db.load_db()
 	
