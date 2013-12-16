@@ -15,6 +15,7 @@ from argparse import ArgumentParser
 from os import environ, system
 
 class Bibdb:
+	bibliography_path = ''
 	bibliography_file = 'bibliography.json'
 	db = []
 	def __init__(self):
@@ -23,7 +24,8 @@ class Bibdb:
 			# os.path.expanduser is necessary to recognize ~
 			with open(os.path.expanduser('~/.bibliorc')) as fh:
 				dir= os.path.expanduser(fh.read().rstrip('\n'))
-			os.chdir(dir)
+			self.bibliography_file = os.path.join(dir,self.bibliography_file)
+			self.bibliography_path = dir
 		except:
 			pass
 		print 'using bibliography file: %s'%self.bibliography_file
@@ -71,19 +73,21 @@ class Bibdb:
 			for i,dictentry in enumerate(authorlist):
 				s += ' and ' if i!=0 else ''
 				s += dictentry['given'] + ' ' + dictentry['family'];
-			bibtex += 'author = {%s}\n'%s
+			bibtex += 'author = {%s},\n'%s
 			# title
-			bibtex += 'title = {{%s}}\n'%bibitem['title']
+			bibtex += 'title = {{%s}},\n'%bibitem['title']
 			try: #optional
-				bibtex += 'journal = {%s}\n'%bibitem['journal']
-				bibtex += 'volume= {%s}\n'%bibitem['volume']
-				bibtex += 'number= {%s}\n'%bibitem['number']
-				bibtex += 'page= {%s}\n'%bibitem['page']
+				bibtex += 'journal = {%s},\n'%bibitem['journal']
+				bibtex += 'year= {%s},\n'%bibitem['issued']['literal']
+				bibtex += 'volume= {%s},\n'%bibitem['volume']
+				bibtex += 'number= {%s},\n'%bibitem['number']
+				bibtex += 'pages= {%s},\n'%bibitem['page']
 			except:
 				pass
+			bibtex += '}\n'
 			if onlyfirst==True: # only output the first item
 				break
-		return bibtex + '}'
+		return bibtex
 	def extract_bibtex(self,file):
 		with open(file) as fh:
 			text = fh.read()
@@ -129,7 +133,7 @@ class Bibdb:
 		else:
 			print 'all references have a full key'
 		# create bibtex file
-		with open(file+'.bib','w') as fh:
+		with open(os.path.splitext(file)[0]+'.bib','w') as fh:
 			for item in biblist:
 				fh.write(self.bibentry_to_bibtex(item) + '\n')
 		
@@ -187,7 +191,7 @@ class Bibdb:
 				if input == 'y':
 					# rename file
 					try:
-						file_new = rename_file(file, bibitem[0])
+						file_new = rename_file(file, bibitem[0], self.bibliography_path, False)
 						bibitem[0]['file'] = file_new
 					except:
 						print 'renaming file failed', traceback.print_exc()
@@ -217,7 +221,7 @@ class Bibdb:
 			try:
 				file = self.db[i]['file']
 				print 'current name: %s'%file
-				file_new = rename_file(file, self.db[i])
+				file_new = rename_file(file, self.db[i],self.bibliography_path)
 				self.db[i]['file'] = file_new
 				if file_new != file:
 					print '-> %s'%file_new

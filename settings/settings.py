@@ -57,9 +57,11 @@ def format_bibitem(item):
 		print 'could not access journal information.', traceback.print_exc()
 
 # rename the file according to the entry
-def rename_file(file,item):
+def rename_file(file,item,path,abs_path=True):
 	try:
-		file_new = ''
+		file_new = path
+		if abs_path==True:
+			file = os.path.join(path,file)
 		#authorlist = item['author']
 		#for i,dictentry in enumerate(authorlist):
 		#	family_name = dictentry['family'].lower()
@@ -68,7 +70,7 @@ def rename_file(file,item):
 		#file_new += item['issued']['literal'] + ' ('
 		#file_new += item['title'] + ',' + item['journal'] + ').pdf'
 	
-		file_new += item['id'].split(':')[1]
+		file_new += item['id'].split(':')[0]
 		file_new += '.pdf'
 
 		if file != file_new:
@@ -96,9 +98,9 @@ def compute_key(item):
 		hash = base64.b64encode(m.digest()).replace('=','')
 		hash32 = base64.b32encode(m.digest()).replace('=','')
 		# this should be a unique hash
-		item['id'] = item['author'][0]['family'].lower() + item['issued']['literal'] + '-' + hash
+		# item['id'] = item['author'][0]['family'].lower() + item['issued']['literal'] + '-' + hash
 		# this is unique as well and is valid as a filename
-		item['id'] += ':' + item['author'][0]['family'].lower() + item['issued']['literal'] + '-' + hash32
+		item['id'] = item['author'][0]['family'].lower() + item['issued']['literal'] + '-' + hash32
 		# simple hash
 		item['id'] += ':' + item['author'][0]['family'].lower() + item['issued']['literal'] 
 		# three digit number as hash (but possibly not unique in some dbs)
