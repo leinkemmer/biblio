@@ -88,6 +88,11 @@ class Bibdb:
 			if onlyfirst==True: # only output the first item
 				break
 		return bibtex
+	def all_bibtex(self, file):
+		with open(os.path.splitext(file)[0]+'.bib','w') as fh:
+			for item in self.db:
+				fh.write(self.bibentry_to_bibtex(item) + '\n')
+
 	def extract_bibtex(self,file):
 		with open(file) as fh:
 			text = fh.read()
@@ -291,6 +296,9 @@ if __name__ == "__main__":
 	parser.add_argument('-b', '--bibtex', \
 			help='generate a bibtex file from the latex references', \
 			nargs=1, default=False)
+	parser.add_argument('-d', '--allbibtex', \
+			help='output all entries in bibtex format', \
+			nargs=1, default=False)
 	parser.add_argument('-a', '--autoadd', \
 			help='crawl directory and add files to bibliography', \
 			action='store_true', default=False)
@@ -320,6 +328,8 @@ if __name__ == "__main__":
 			os.system('okular "%s" &'%file)
 	elif args.bibtex:
 		db.extract_bibtex(args.bibtex[0])
+	elif args.allbibtex:
+		db.all_bibtex(args.allbibtex[0])
 	elif args.autoadd:
 		files = filter(os.path.isfile, os.listdir( os.curdir ) ) # get all files in current directory
 		for f in files:
