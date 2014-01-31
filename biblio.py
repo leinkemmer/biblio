@@ -1,346 +1,174 @@
 #!/usr/bin/python
 
-# import external libraries
+# standard library imports
+from os import system
+from os.path import join,expanduser,basename,splitext,dirname
+from argparse import ArgumentParser
 import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__),'external'))
-sys.path.append(os.path.join(os.path.dirname(__file__),'settings'))
-from  gscholar import pdflookup, FORMAT_BIBTEX
-from bib import Bibparser, clear_comments
+import traceback
+import json
+# external modules
+sys.path.append(join(dirname(__file__),'external'))
+# local modules
+from misc import *
+sys.path.append(join(dirname(__file__),'settings'))
 from settings import *
 
-# something from the stdlib
-import json, tempfile, re, traceback
-from argparse import ArgumentParser
-from os import environ, system
+#
+# functions for file handling
+#
+def load_config(filename):
+	"""Loads config file given by filename and returns a dictionary.
+	"""
+	with open(filename) as f:
+		dir = expanduser(f.read().rstrip('\n'))
+	return {'directory':dir, 'file':join(dir,'bibliography.json')}
 
-class Bibdb:
-	bibliography_path = ''
-	bibliography_file = 'bibliography.json'
-	db = []
-	def __init__(self):
-		try:
-			dir= ''
-			# os.path.expanduser is necessary to recognize ~
-			with open(os.path.expanduser('~/.bibliorc')) as fh:
-				dir= os.path.expanduser(fh.read().rstrip('\n'))
-			self.bibliography_file = os.path.join(dir,self.bibliography_file)
-			self.bibliography_path = dir
-		except:
-			pass
-		print 'using bibliography file: %s'%self.bibliography_file
-	def load_db(self):
-		try:
-			with open(self.bibliography_file) as fh:
-				bib = fh.read()
-			self.db = json.loads(bib)
-			print 'loaded %d items from file'%len(self.db)
-		except IOError:
-			print 'WARNING: file does not exists. Returning empty list.'
-			print traceback.print_exc()	
-	def save_db(self):
-		text = json.dumps(self.db, indent=4)
-		with open(self.bibliography_file, 'w') as fh:
-			fh.write(text)
-	def list_bibliography(self):
-		for bibitem in self.db:
-			try:
-				s = ''
-				authorlist = bibitem['author']
-				for i,dictentry in enumerate(authorlist):
-					s += ', ' if i!=0 else ''
-					s += dictentry['given'] + ' ' + dictentry['family'];
-				s += '. ' + bibitem['title'] + '. ' + bibitem['issued']['literal']
-				try: #optional
-					s += '. ' + bibitem['journal']
-					s += ', ' + bibitem['volume']
-					s += ', ' + bibitem['number']
-					s += ', ' + bibitem['page']
-				except:
-					pass
-				print s
-			except:
-				print 'entry is missing information',traceback.print_exc()	
-	def bibentry_to_bibtex(self,bibitem,onlyfirst=False):
-		bibtex = ''
-		# this is redundant as we put the item in the bibtex file for each key saved
-		for key in bibitem['id'].split(':'):
-			# article type
-			bibtex += '@%s{%s,\n'%(bibitem['type'],key)
-			# author
-			s = ''
-			authorlist = bibitem['author']
-			for i,dictentry in enumerate(authorlist):
-				s += ' and ' if i!=0 else ''
-				s += dictentry['given'] + ' ' + dictentry['family'];
-			bibtex += 'author = {%s},\n'%s
-			# title
-			bibtex += 'title = {{%s}},\n'%bibitem['title']
-			try: #optional
-				bibtex += 'journal = {%s},\n'%bibitem['journal']
-				bibtex += 'year= {%s},\n'%bibitem['issued']['literal']
-				bibtex += 'volume= {%s},\n'%bibitem['volume']
-				bibtex += 'number= {%s},\n'%bibitem['number']
-				bibtex += 'pages= {%s},\n'%bibitem['page']
-			except:
-				pass
-			bibtex += '}\n'
-			if onlyfirst==True: # only output the first item
-				break
-		return bibtex
-	def all_bibtex(self, file):
-		with open(os.path.splitext(file)[0]+'.bib','w') as fh:
-			for item in self.db:
-				fh.write(self.bibentry_to_bibtex(item) + '\n')
+def load(filename):
+	'''Load bibliography database from a file.
+	'''
+	with open(filename) as f:
+		text = f.read()
+	return json.loads(text)
 
-	def extract_bibtex(self,file):
-		with open(file) as fh:
-			text = fh.read()
-		# used to build a regex key to modify the .tex file
-		regexfinal = []
-		# process keys one by one
-		biblist = []
-		for m in re.finditer(r"\\cite\{(.+?)\}",text):
-			key = m.group(1)
-			# naive matching algo
-			match = []
-			try:
-				for bibitem in self.db:
-					bi_keys = bibitem['id'].split(':')
-					if key in bi_keys:
-						match.append(bibitem)
-						break
-			except Exception:
-				pass
-			if match == []:
-				print 'no match found for %s'%key
-				continue
-			elif len(match)==1:
-				print '%s (%s)'%(match[0]['title'],key)
-				choice = 0
-				biblist.append(match[0])
-			else:
-				for m in match:
-					print m
-				choice = int(raw_input('please enter index of desired reference'))
-				if choice >= len(match):
-					continue
-				biblist.append(match[1])
-			if key != match[choice]['id'].split(':')[0]:
-				regexfinal.append("sed -i s,\\cite\{%s\},\\cite\{%s\},g %s"%(key,match[choice]['id'].split(':')[0],file))
-		# change the tex file (if user agrees)
-		if len(regexfinal)>0:
-			print '\n'.join(regexfinal)
-			answer = raw_input("perform replacement? [y,n]")
-			if answer == 'y':
-				for command in regexfinal:
-					os.system(command)
-		else:
-			print 'all references have a full key'
-		# create bibtex file
-		with open(os.path.splitext(file)[0]+'.bib','w') as fh:
-			for item in biblist:
-				fh.write(self.bibentry_to_bibtex(item) + '\n')
-		
+def save(filename,db):
+	'''Save database to a file
+	'''
+	text = json.dumps(db,indent=4)
+	with open(filename,'w') as f:
+		f.write(text)
 
-	def add_entry_from_file(self,file,lookupscholar=True):
-		# determine text editor used
+def ls(db):
+	''' Outputs a colorized list of the biblography entries
+	'''
+	for it in db:
+		n = safedict(names, it, 'Author information unavailable')
+		t = safedict(lambda x: x['title'], it, 'Title unavailable')
+		y = safedict(year, it, 'Year unavailable')
+		j = safedict(journal, it, 'Journal/Publisher information unavailable')
+		print "%s||%s||%s||%s"%(n,t,y,j)
+
+def tobib(it, key):
+	'''Returns a string in the bibtex format given an item in the bibliography
+	database. Note that the key used has to be supplied to this function
+	'''
+	ty = it['type']
+	if ty == 'article':
+		return bibstr(it,ty,key,['author','title','year','journal'],['volume','number','pages'])
+	elif ty == 'book':
+		return bibstr(it,ty,key,['author','title','year','publisher'],['volume','edition'])
+	elif ty == 'book':
+		return bibstr(it,ty,key,['author','title','year','school'],[])
+	else: # this is a default template
+		return bibstr(it,ty,key,['author','title','year'],[])
+
+def ls_bib(db):
+	''' Outputs a colorized list of the biblography entries
+	'''
+	for it in db:
 		try:
-			editor = environ['EDITOR']
+			key = unique_key(db,it)
+			print tobib(it,key)
 		except KeyError:
-			editor = 'vim'
-		# get bibtex code from pdf and google scholar
-		if lookupscholar == True:
-			biblist = pdflookup(file, False, FORMAT_BIBTEX)
-		else:
-			biblist = []
-		if len(biblist)>0:
-			bibitem = biblist[0]	
-		else:
-			input = raw_input("no record could be deduced from the pdf file %s. do you want to insert a bibtex entry manually? [y,n]"%file)
-			if input=='y':
-				tmpfile = tempfile.NamedTemporaryFile().name + ".bibtex"
-				system(editor + ' ' + tmpfile)
-				#try:
-				with open(tmpfile, "r") as fh:
-					bibitem = fh.read()
-				#except:
-				#	return
-			else:
-				return
-		# parse bibtex to dictionary format
-		bibitem = clear_comments(bibitem)
-		bibparser = Bibparser(bibitem)
-		bibparser.parse()
-		bibitem = bibparser.records.values()
-		# standard formatting rules are applied
-		format_bibitem(bibitem[0])
-		# a key is computed
-		compute_key(bibitem[0])
-		
-		# allow the user to make modifications
-		tmpfile = tempfile.NamedTemporaryFile().name + ".json"
-		with open(tmpfile, "w") as fh:
-			fh.write(json.dumps(bibitem, indent=4))
-		# modify and read back the filea
-		loop = True
-		while loop:
-			system(editor + ' ' + tmpfile)
-			with open(tmpfile) as fh:
-					bibitem = fh.read()
-			try:
-				bibitem = json.loads(bibitem)
-				compute_key(bibitem[0])
-				print json.dumps(bibitem, indent=4)
-				input = raw_input("Save this item to the database? [y,n]")
-				if input == 'y':
-					# rename file
-					try:
-						file_new = rename_file(file, bibitem[0], self.bibliography_path, False)
-						bibitem[0]['file'] = file_new
-					except:
-						print 'renaming file failed', traceback.print_exc()
-						bibitem[0]['file'] = file
-					# save file
-					self.db += [bibitem[0]]
-					self.save_db()
-					loop = False
-					print 'saved bibliography entry'
-
-				elif input == 'n':
-					loop = False
-			except Exception as detail:
-				print 'ERROR: could not parse modified json data', detail
-				raw_input('press enter to continue')
-	def cleanup_bibliography(self):
-		print 'not yet implemented'
-	def recompute_keys(self):
-		for i in range(len(self.db)):
-			try:
-				compute_key(self.db[i])
-			except:
-				print 'entry is missing information',traceback.print_exc()
-		self.save_db()
-	def rename_files(self):
-		for i in range(len(self.db)):
-			try:
-				file = self.db[i]['file']
-				print 'current name: %s'%file
-				file_new = rename_file(file, self.db[i],self.bibliography_path)
-				self.db[i]['file'] = file_new
-				if file_new != file:
-					print '-> %s'%file_new
-			except:
-				print 'entry is missing information',traceback.print_exc()
-		self.save_db()
+			stderr('ERROR: could not construct bibtex entry for item \n%s\n'%s)
 
 
-	def lookup_key(self,key):
-		match = []
+def upd(db, db_dir):
+	'''Updates the keys from whatever is in the database and renames the files
+	if necessary
+	'''
+	# update key
+	for it in db:
 		try:
-			for bibitem in self.db:
-				bi_keys = bibitem['id'].split(':')
-				if key in bi_keys:
-					match.append(bibitem)
-					break
-		except Exception:
-			pass
-		if match == []:
-			print 'no match found for %s'%key
-			choice = -1
-		elif len(match)==1:
-			choice = 0
-		else:
-			for m in match:
-				print m
-			choice = int(raw_input('please enter index of desired reference'))
-			while True:
-				if choice >= 0 and choice < len(match):
-					break
-		if choice != -1:
-			print '%s (%s)'%(match[choice]['title'],key)
-			print self.bibentry_to_bibtex(match[choice],True)
-			#return os.path.join(os.path.dirname(self.bibliography_file),match[choice]['file'])
-			return match[choice]['file']
-		else:
-			return ''
+			key = generate_key(it)
+			it['id'] = key
+		except KeyError:
+			print 'ERROR: could not compute key of item \n%s\n'%it
 
-	def check_file(self,f):
+	# move files
+	for it in db:
+		key = unique_key(db,it)
 		try:
-			for bibitem in self.db:
-				if bibitem['file'] == f:
-					return True
-		except Exception:
-			print 'something went wrong'
-			pass
-		return False
+			file = basename(it['file'])
+			new_file = key+'.pdf'
+			if new_file != file:
+				verbose('%s -> %s'%(file,new_file))
+				system('mv -n "%s" "%s"'%(db_dir+file,db_dir+new_file))
+		except KeyError:
+			print 'no file given for entry with id %s'%key
 
-# main functiokn
+		it['file'] = new_file
+
+def add_interactive(db, file, bibstring):
+	it = bibtex2dict(bibstring)
+	it['id'] = 'XXX'
+	it['file'] = file
+	format_bibitem(it)
+	# ask user
+	while True:
+		text = external_edit(json.dumps(it, indent=4), '.json')
+		try:
+			it = json.loads(text)
+			key = generate_key(it)
+			it['id'] = key
+			print json.dumps(it, indent=4)
+			input = raw_input("Save this item to the database? [y,n]")
+			if input == 'y':
+				db += [it]
+				print 'Item has been saved in bibliography.'
+				break
+			elif input == 'n':
+				break	
+		except Exception as detail:
+			print 'ERROR: could not parse modified json data', detail
+			input = raw_input('Edit json? [y,n]')
+			if input == 'n':
+				break
+
+#
+# main program
+#
 if __name__ == "__main__":
 	parser = ArgumentParser()
-	parser.add_argument('-l', '--list', \
-			help='list all references in the bibliography', \
-			action='store_true', default=False)
-	parser.add_argument('-c', '--cleanup', \
-			help='cleanup database (suggests the removal of duplicates)', \
-			action='store_true', default=False)
-	parser.add_argument('-k', '--key', \
-			help='recompute keys (useful if entries have been added by hand)', \
-			action='store_true', default=False)
-	parser.add_argument('-r', '--rename', \
-			help='rename files stored in db according to the settings', \
-			action='store_true', default=False)
-	parser.add_argument('-o', '--open', \
-			help='open pdf file from key provided', \
-			nargs=1, default=False)
-	parser.add_argument('-b', '--bibtex', \
-			help='generate a bibtex file from the latex references', \
-			nargs=1, default=False)
-	parser.add_argument('-d', '--allbibtex', \
-			help='output all entries in bibtex format', \
-			nargs=1, default=False)
-	parser.add_argument('-a', '--autoadd', \
-			help='crawl directory and add files to bibliography', \
-			action='store_true', default=False)
-	parser.add_argument('file', \
-			help='filename to add to the bibliography', \
-			nargs='?') # optional
-	parser.add_argument('-n', '--nogoogle', \
-			help='do not lookup google scholar', \
-			action='store_true', default=False)
-
+	subparsers = parser.add_subparsers(dest='sub',title='command',\
+			description='''Use add --help to get additional information on
+			               a specific command. The available commands are:''')
+	p_ls = subparsers.add_parser('ls')
+	p_bib = subparsers.add_parser('bib', description='C')
+	p_upd = subparsers.add_parser('upd')
+	p_add = subparsers.add_parser('add')
+	p_add.add_argument('file', help='a pdf file')
+	p_add.add_argument('bibstring', help='a bibtex entry (starting with @)')
 	args = parser.parse_args()
-
-	db = Bibdb()
-	db.load_db()
 	
-	if args.list:
-		db.list_bibliography()
-	elif args.cleanup:
-		db.cleanup_bibliography()
-	elif args.key:
-		db.recompute_keys()
-	elif args.rename:
-		db.rename_files()
-	elif args.open:
-		file = db.lookup_key(args.open[0])
-		if file != '':
-			os.system('okular "%s" &'%file)
-	elif args.bibtex:
-		db.extract_bibtex(args.bibtex[0])
-	elif args.allbibtex:
-		db.all_bibtex(args.allbibtex[0])
-	elif args.autoadd:
-		files = filter(os.path.isfile, os.listdir( os.curdir ) ) # get all files in current directory
-		for f in files:
-			if os.path.splitext(f)[1]=='.pdf':
-				if not db.check_file(f):
-					db.add_entry_from_file(f)
-	elif args.file != None:
-		if args.nogoogle:
-			db.add_entry_from_file(args.file,False)
-		else:
-			db.add_entry_from_file(args.file)
-	else:
-		print ""
+	try:
+		config = load_config(expanduser('~/.bibliorc'))
+		verbose('Bibliography file: %s'%config['file'])
+		db = load(config['file'])
+		verbose('Loaded %d items from file'%len(db))
+		
+		if args.sub == 'ls':
+			ls(db)
+		elif args.sub == 'bib':
+			ls_bib(db)
+		elif args.sub == 'upd':
+			upd(db, config['directory'])
+			save(config['file'], db)
+			# save
+		elif args.sub == 'add':
+			ending = splitext(args.file)[1]
+			file   = basename(args.file)
+			if ending == '.pdf':
+				system('cp %s %s'%(file,join(config['directory'],file)))
+				add_interactive(db, args.file, args.bibstring)
+				save(config['file'], db)
+			else:
+				stderr('ERROR: file extension is not .pdf')
+
+	except IOError as e:
+		stderr('ERROR: cannot open', e.filename)
+	except:
+		stderr('ERROR: unknown, printing traceback')
+		stderr(traceback.print_exc())
+
 

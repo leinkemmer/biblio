@@ -1,9 +1,6 @@
 Read journal-list/README and then run ./biblio.py --help
 
-The script uses the following two libraries
-
-gscholar.py google scholar lookup (for pdf files and other searches)
-https://github.com/venthur/gscholar
+The script uses the following library
 
 bibtex parser
 https://github.com/ptigas/bibpy

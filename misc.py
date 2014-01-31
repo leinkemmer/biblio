@@ -2,6 +2,9 @@ import sys
 import hashlib
 import base64 
 import unicodedata
+from os import system, environ
+import tempfile
+from bib import Bibparser, clear_comments
 
 #
 # bibliography helper functions
@@ -99,9 +102,54 @@ def safedict(f,args,message):
 
 
 def remove_bibtex(s):
-	'''removes all {, \\, and whitespaces from string
+	'''Removes all {, \\, and whitespaces from string
 	'''
 	return s.replace('"','').replace('{','').replace('}','').replace('\\','').replace(' ','')
+
+def get_environ(name, default):
+	'''Get environment variables where a default is returned for a not-defined or empty
+	variable
+	'''
+	try:
+		editor = environ['EDITOR']
+	except KeyError:
+		return default
+	if editor == '':
+		return default
+	else:
+		return editor
+
+def read_text(filename):
+	'''Reads an entire text file
+	'''
+	with open(filename) as fh:
+		text = fh.read()
+	return text
+
+def write_text(filename, text):
+	'''Write a text to a file
+	'''
+	with open(filename, "w") as fh:
+		fh.write(text)
+
+
+def external_edit(text, ending):
+	'''Calls an editor ($EDITOR or vim) in order to edit a piece of text
+	'''
+	editor = get_environ('EDITOR','vim')
+	tmpfile = tempfile.NamedTemporaryFile().name+ending
+	write_text(tmpfile, text)
+	system(editor + ' ' + tmpfile)
+	return read_text(tmpfile)
+
+def bibtex2dict(bibstring):
+	'''Converts bibtex to the json dictionary format used internally
+	'''
+	it = clear_comments(bibstring)
+	bibparser = Bibparser(it)
+	bibparser.parse()
+	return bibparser.records.values()[0]
+
 
 # not currently used
 #def remove_accents(input_str):
