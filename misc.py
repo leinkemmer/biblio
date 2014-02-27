@@ -148,7 +148,11 @@ def bibtex2dict(bibstring):
 	it = clear_comments(bibstring)
 	bibparser = Bibparser(it)
 	bibparser.parse()
-	return bibparser.records.values()[0]
+	result = bibparser.records.values()
+	if len(result)==1:
+		return result[0]
+	else:
+		return result
 
 
 # not currently used
@@ -158,5 +162,4 @@ def bibtex2dict(bibstring):
 #	'''
 #    nkfd_form = unicodedata.normalize('NFKD', input_str)
 #    return u"".join([c for c in nkfd_form if not unicodedata.combining(c)])
-
 

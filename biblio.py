@@ -99,10 +99,11 @@ def upd(db, db_dir):
 
 		it['file'] = new_file
 
-def add_interactive(db, file, bibstring):
+def add_interactive(db, bibstring, file=''):
 	it = bibtex2dict(bibstring)
 	it['id'] = 'XXX'
-	it['file'] = file
+	if file != '':
+		it['file'] = file
 	format_bibitem(it)
 	# ask user
 	while True:
@@ -125,6 +126,11 @@ def add_interactive(db, file, bibstring):
 			if input == 'n':
 				break
 
+def add_bibtex(db, file):
+	bibstring = read_text(file)
+	for it in bibtex2dict(bibstring):
+		db += [it]
+
 #
 # main program
 #
@@ -139,6 +145,8 @@ if __name__ == "__main__":
 	p_add = subparsers.add_parser('add')
 	p_add.add_argument('file', help='a pdf file')
 	p_add.add_argument('bibstring', help='a bibtex entry (starting with @)')
+	p_addbib = subparsers.add_parser('addbib')
+	p_addbib.add_argument('bibfile', help='a .bib file')
 	args = parser.parse_args()
 	
 	try:
@@ -164,7 +172,12 @@ if __name__ == "__main__":
 				save(config['file'], db)
 			else:
 				stderr('ERROR: file extension is not .pdf')
-
+		elif args.sub == 'addbib':
+			file = args.bibfile
+			add_bibtex(db, file)
+			print json.dumps(db,indent=4)
+			save(config['file'], db)
+			
 	except IOError as e:
 		stderr('ERROR: cannot open', e.filename)
 	except:
