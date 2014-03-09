@@ -11,6 +11,7 @@ import json
 sys.path.append(join(dirname(__file__),'external'))
 # local modules
 from misc import *
+import urllib2
 
 #
 # functions for file handling
@@ -99,6 +100,12 @@ def ls_bib(db):
 		except KeyError:
 			stderr('ERROR: could not construct bibtex entry for item \n%s\n'%s)
 
+def format_bibitem(it):	
+	it['id'] = generate_key(it)
+	format_authors(it)
+	matched = format_journalsabbr(it)
+	return matched
+
 
 def upd(db, db_dir):
 	'''Updates the keys from whatever is in the database and renames the files
@@ -111,17 +118,12 @@ def upd(db, db_dir):
 			if 'update' in it.keys() and it['update'] == 'false':
 				print 'key %s ignored'%it['key']
 			else:
-				it['id'] = generate_key(it)
-				format_authors(it)
-				matched = format_journalsabbr(it)
+				matched = format_bibitem(it)
 				if matched == False and 'journal' in it.keys():
 					unmatched_journals.append(it['journal'])
-				#it['year'] = it['issued']['literal']
-				#del it['issued']
 		except KeyError:
 			print 'ERROR: could not compute key of item \n%s\n'%json.dumps(it,indent=4)
 
-	print json.dumps(db, indent=4)
 	# move files
 	for it in db:
 		key = unique_key(db,it)
@@ -139,14 +141,7 @@ def upd(db, db_dir):
 		print '\nThe following journals are unmatched in the database: %s'%'\n\t'.join(set(unmatched_journals))
 
 
-
-def add_interactive(db, bibstring, file=''):
-	it = bibtex2dict(bibstring)
-	it['id'] = 'XXX'
-	if file != '':
-		it['file'] = file
-	format_bibitem(it)
-	# ask user
+def user_accept(db, it):
 	while True:
 		text = external_edit(json.dumps(it, indent=4), '.json')
 		try:
@@ -167,10 +162,49 @@ def add_interactive(db, bibstring, file=''):
 			if input == 'n':
 				break
 
+
+def add_interactive(db, bibstring, file=''):
+	it = bibtex2dict(bibstring)
+	it['id'] = 'XXX'
+	if file != '':
+		it['file'] = file
+	format_bibitem(it)
+	# ask user
+	user_accept(db, it)
+	
 def add_bibtex(db, file):
 	bibstring = read_text(file)
 	for it in bibtex2dict(bibstring):
 		db += [it]
+
+def search_crossref(db):
+	res = ''
+	while True:
+		s = raw_input('enter search term, the number to save, or q to quit: ')
+		if s == 'q':
+			return ''
+		if s.isdigit():
+			n = int(s)
+			doi = res[n-1]['doi']
+			print 'DOI: %s'%doi
+			# get bibtex from doi.org
+			request = urllib2.Request(doi,headers={'Accept': 'text/bibliography; style=bibtex'})
+			bibtex = urllib2.urlopen(request).read()
+			print bibtex
+			it = bibtex2dict(bibtex)
+			print json.dumps(it, indent=4)
+			format_bibitem(it)
+			# ask user
+			user_accept(db, it)
+			return
+		res = urllib2.urlopen("http://search.crossref.org/dois?q=%s&sort=score"%s).read()
+		res = json.loads(res)
+		m = 1
+		for x in res:
+			print '[%d]\t%s'%(m,x['fullCitation'])
+			m+=1
+	return ''
+
 
 #
 # main program
@@ -188,10 +222,8 @@ if __name__ == "__main__":
 	p_add.add_argument('bibstring', help='a bibtex entry (starting with @)')
 	p_addbib = subparsers.add_parser('addbib')
 	p_addbib.add_argument('bibfile', help='a .bib file')
+	p_add = subparsers.add_parser('search')
 	args = parser.parse_args()
-
-	#print unicode2bibtex('\\\\a HALLO \\u00ee')
-	#sys.exit(0)
 
 	try:
 		config = load_config(expanduser('~/.bibliorc'))
@@ -201,7 +233,6 @@ if __name__ == "__main__":
 		else:
 			db = load(config['file'])
 		verbose('Loaded %d items from file'%len(db))
-		print json.dumps(db,indent=4)
 	
 		tobesaved = False
 		if args.sub == 'ls':
@@ -224,6 +255,9 @@ if __name__ == "__main__":
 			file = args.bibfile
 			add_bibtex(db, file)
 			print json.dumps(db,indent=4)
+			tobesaved = True
+		elif args.sub == 'search':
+			js = search_crossref(db)
 			tobesaved = True
 
 		if tobesaved == True:

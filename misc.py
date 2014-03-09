@@ -10,6 +10,8 @@ sys.path.append(join(dirname(__file__),'settings'))
 from settings import *
 from unicode_to_latex import *
 import json
+from pybtex.database.input import bibtex
+from StringIO import StringIO
 
 #
 # bibliography helper functions
@@ -25,8 +27,10 @@ def names(item, separator=', '):
 def year(item):
 	'''Returns the year of the publication
 	'''
-	#return item['issued']['literal']
-	return item['year']
+	if 'year' in item.keys():
+		return item['year']
+	else:
+		return '0000'
 
 def journal(item):
 	'''Returns a string specifying the journal information/publisher and the
@@ -158,16 +162,39 @@ def external_edit(text, ending):
 	system(editor + ' ' + tmpfile)
 	return read_text(tmpfile)
 
-def bibtex2dict(bibstring):
-	'''Converts bibtex to the json dictionary format used internally
+
+def pybtex2dict(text):
+	'''Uses the pybtex framework to parse bibtex
 	'''
-	it = clear_comments(bibstring)
+	parser = bibtex.Parser()
+	bibdata = parser.parse_stream(StringIO(text))
+	bibliography = []
+	for count, key in enumerate(bibdata.entries):
+		entry = bibdata.entries[key]
+		new_dic = {}
+		for skey in entry.fields:
+			new_dic[skey] = entry.fields[skey]
+
+		new_dic['author'] = [{'given':author.first()[0], 'family':author.last()[0]} for author in entry.persons.get('author')]
+		new_dic['type'] = entry.type.lower()
+		bibliography.append(new_dic)
+	return bibliography
+
+def bibparser2dict(it):
+	'''uses the Bibparser framework to parse bibtex (depracted)
+	'''
 	bibparser = Bibparser(it)
 	bibparser.parse()
 	result = bibparser.records.values()
 	for it in result:
 		it['year'] = it['issued']['literal']
 		del it['issued']
+
+def bibtex2dict(bibstring):
+	'''Converts bibtex to the json dictionary format used internally
+	'''
+	text = clear_comments(bibstring)
+	result = pybtex2dict(text)
 	if len(result)==1:
 		return result[0]
 	else:
