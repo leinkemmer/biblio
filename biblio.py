@@ -74,7 +74,7 @@ def ls(db):
 		t = safedict(lambda x: x['title'], it, 'Title unavailable')
 		y = safedict(year, it, 'Year unavailable')
 		j = safedict(journal, it, 'Journal/Publisher information unavailable')
-		print "%s||%s||%s||%s"%(n,t,y,j)
+		print "%s|%s|%s|%s"%(n,t,y,j)
 
 def tobib(it, key):
 	'''Returns a string in the bibtex format given an item in the bibliography
