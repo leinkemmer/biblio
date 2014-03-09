@@ -1,7 +1,2 @@
 Read journal-list/README and then run ./biblio.py --help
 
-The script uses the following library
-
-bibtex parser
-https://github.com/ptigas/bibpy
-
