@@ -11,8 +11,6 @@ import json
 sys.path.append(join(dirname(__file__),'external'))
 # local modules
 from misc import *
-sys.path.append(join(dirname(__file__),'settings'))
-from settings import *
 
 #
 # functions for file handling
@@ -21,15 +19,16 @@ def load_config(filename):
 	"""Loads config file given by filename and returns a dictionary.
 	"""
 	with open(filename) as f:
-		dir = expanduser(f.read().rstrip('\n'))
-	return {'directory':dir, 'file':join(dir,'bibliography.json')}
+		filename = expanduser(f.read().rstrip('\n'))
+	ending = splitext(filename)[1]
+	return {'directory':dirname(filename), 'file':filename, 'ending':ending}
 
 def load(filename):
 	'''Load bibliography database from a file.
 	'''
 	with open(filename) as f:
 		text = f.read()
-	return json.loads(text)
+	return json.loads(unicode2bibtex(text))
 
 def save(filename,db):
 	'''Save database to a file
@@ -37,6 +36,34 @@ def save(filename,db):
 	text = json.dumps(db,indent=4)
 	with open(filename,'w') as f:
 		f.write(text)
+
+def load_bibnote(filename):
+	'''Load the bibnote format
+	'''
+	with open(filename) as f:
+		text = f.read()
+	orig = json.loads(unicode2bibtex(text))
+	entries = orig['bibliography']
+	values = entries.values()
+	swap_key(values, 'key', 'id')
+	for it in values:
+		it['author'] = authors_to_list(it['author'])
+	return [values, entries.keys(), orig]
+
+def save_bibnote(filename, db, orig, keys):
+	'''Save in bibnote format
+	'''
+	# prepare
+	swap_key(db, 'id', 'key')
+	for it in db:
+		it['author'] = list_to_authors(it['author'])
+	entries = dict(zip(keys, db))
+	orig['bibliography'] = entries
+	# save
+	text = json.dumps(orig,indent=4)
+	with open(filename,'w') as f:
+		f.write(text)
+
 
 def ls(db):
 	''' Outputs a colorized list of the biblography entries
@@ -77,14 +104,24 @@ def upd(db, db_dir):
 	'''Updates the keys from whatever is in the database and renames the files
 	if necessary
 	'''
-	# update key
+	# update key and apply formatting rule
+	unmatched_journals = []
 	for it in db:
 		try:
-			key = generate_key(it)
-			it['id'] = key
+			if 'update' in it.keys() and it['update'] == 'false':
+				print 'key %s ignored'%it['key']
+			else:
+				it['id'] = generate_key(it)
+				format_authors(it)
+				matched = format_journalsabbr(it)
+				if matched == False and 'journal' in it.keys():
+					unmatched_journals.append(it['journal'])
+				#it['year'] = it['issued']['literal']
+				#del it['issued']
 		except KeyError:
-			print 'ERROR: could not compute key of item \n%s\n'%it
+			print 'ERROR: could not compute key of item \n%s\n'%json.dumps(it,indent=4)
 
+	print json.dumps(db, indent=4)
 	# move files
 	for it in db:
 		key = unique_key(db,it)
@@ -93,11 +130,15 @@ def upd(db, db_dir):
 			new_file = key+'.pdf'
 			if new_file != file:
 				verbose('%s -> %s'%(file,new_file))
-				system('mv -n "%s" "%s"'%(db_dir+file,db_dir+new_file))
+				#system(u'mv -n "%s" "%s"'%(db_dir+file,db_dir+new_file))
 		except KeyError:
 			print 'no file given for entry with id %s'%key
-
 		it['file'] = new_file
+	# output
+	if len(unmatched_journals) > 0:
+		print '\nThe following journals are unmatched in the database: %s'%'\n\t'.join(set(unmatched_journals))
+
+
 
 def add_interactive(db, bibstring, file=''):
 	it = bibtex2dict(bibstring)
@@ -148,38 +189,52 @@ if __name__ == "__main__":
 	p_addbib = subparsers.add_parser('addbib')
 	p_addbib.add_argument('bibfile', help='a .bib file')
 	args = parser.parse_args()
-	
+
+	#print unicode2bibtex('\\\\a HALLO \\u00ee')
+	#sys.exit(0)
+
 	try:
 		config = load_config(expanduser('~/.bibliorc'))
 		verbose('Bibliography file: %s'%config['file'])
-		db = load(config['file'])
+		if config['ending'] == '.bibnote':
+			[db, keys, orig] = load_bibnote(config['file'])
+		else:
+			db = load(config['file'])
 		verbose('Loaded %d items from file'%len(db))
-		
+		print json.dumps(db,indent=4)
+	
+		tobesaved = False
 		if args.sub == 'ls':
 			ls(db)
 		elif args.sub == 'bib':
 			ls_bib(db)
 		elif args.sub == 'upd':
 			upd(db, config['directory'])
-			save(config['file'], db)
-			# save
+			tobesaved = True
 		elif args.sub == 'add':
 			ending = splitext(args.file)[1]
 			file   = basename(args.file)
 			if ending == '.pdf':
 				system('cp %s %s'%(file,join(config['directory'],file)))
 				add_interactive(db, args.file, args.bibstring)
-				save(config['file'], db)
+				tobesaved = True
 			else:
 				stderr('ERROR: file extension is not .pdf')
 		elif args.sub == 'addbib':
 			file = args.bibfile
 			add_bibtex(db, file)
 			print json.dumps(db,indent=4)
-			save(config['file'], db)
-			
+			tobesaved = True
+
+		if tobesaved == True:
+			if config['ending'] == '.bibnote':
+				save_bibnote(config['file'],db,orig,keys)
+			else:
+				save(config['file'], db)
+
+
 	except IOError as e:
-		stderr('ERROR: cannot open', e.filename)
+		stderr('ERROR: cannot open:%s'%e.filename)
 	except:
 		stderr('ERROR: unknown, printing traceback')
 		stderr(traceback.print_exc())

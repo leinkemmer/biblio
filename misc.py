@@ -2,9 +2,14 @@ import sys
 import hashlib
 import base64 
 import unicodedata
+from os.path import join,dirname
 from os import system, environ
 import tempfile
 from bib import Bibparser, clear_comments
+sys.path.append(join(dirname(__file__),'settings'))
+from settings import *
+from unicode_to_latex import *
+import json
 
 #
 # bibliography helper functions
@@ -20,7 +25,8 @@ def names(item, separator=', '):
 def year(item):
 	'''Returns the year of the publication
 	'''
-	return item['issued']['literal']
+	#return item['issued']['literal']
+	return item['year']
 
 def journal(item):
 	'''Returns a string specifying the journal information/publisher and the
@@ -68,6 +74,8 @@ def unique_key(db,it):
 		return key
 
 def generate_key(it):
+	'''generate the required keys
+	'''
 	m = hashlib.md5()
 
 	s =  names(it)+it['title']+year(it)+journal(it)
@@ -79,13 +87,22 @@ def generate_key(it):
 
 	return key+':'+key+'-'+hash32
 
+def unicode2bibtex(s):
+	'''convert unicode characters present in the string s to bibtex escaped expressions
+	'''
+	ret = s
+	for uni,latex in unicode_to_latex.items():
+		ret = ret.replace(uni, '{%s}'%latex)
+		ret = ret.replace(uni.lower(), '{%s}'%latex)
+	return str(ret)
+
 #
 # general utility
 #
 
 def stderr(message):
 	'''Writes a message to stderr'''
-	sys.stderr.write(str(message)+'\n')
+	sys.stderr.write(unicode(message)+'\n')
 
 def verbose(message):
 	'''Program information that can be disabled in non-verbose mode'''
@@ -132,7 +149,6 @@ def write_text(filename, text):
 	with open(filename, "w") as fh:
 		fh.write(text)
 
-
 def external_edit(text, ending):
 	'''Calls an editor ($EDITOR or vim) in order to edit a piece of text
 	'''
@@ -149,10 +165,63 @@ def bibtex2dict(bibstring):
 	bibparser = Bibparser(it)
 	bibparser.parse()
 	result = bibparser.records.values()
+	for it in result:
+		it['year'] = it['issued']['literal']
+		del it['issued']
 	if len(result)==1:
 		return result[0]
 	else:
 		return result
+
+def swap_key(l, a, b):
+	'''Substitute key b in list l for key a
+	'''
+	for it in l:
+		it[b] = it[a]
+		del it[a]
+
+def authors_to_list(authors):
+	l = []
+	for a in authors.split('and'):
+		names = [x.strip() for x in a.split(',')]
+		if len(names) == 2:
+			[family, given] = names
+		else:
+			family = names[0]
+			given = ''
+		l.append({'given':given, 'family':family})
+	return l
+
+def list_to_authors(l):
+	return ' and '.join(['%s, %s'%(x['family'],x['given']) for x in l])
+		
+
+def format_authors(item):
+	"""Iterate over all authors in the list and apply the supplied formating rule
+	"""
+	try:
+		authorlist = item['author']
+		for i,dictentry in enumerate(authorlist):
+			try:
+				givenname = dictentry['given']
+				authorlist[i]['given'] = format_firstname(givenname)
+			except:
+				print 'could not parse given name number %d properly - retaining original formatting.'%i
+	except:
+		print 'could not access author information.'
+
+def format_journalsabbr(item):
+	"""Determine the journal (if possible) and change it to the proper abbreviation
+	"""
+	try:
+		if 'type' not in item.keys() or item['type'] == 'article':
+			abbreviation = format_journal(item['journal'])
+			if abbreviation != '':
+				item['journal'] = abbreviation
+				return True
+	except:
+		print 'could not access journal information for item with key %s'%primary_key(item)
+	return False
 
 
 # not currently used
