@@ -49,18 +49,28 @@ def load_bibnote(filename):
 	swap_key(values, 'key', 'id')
 	for it in values:
 		it['author'] = authors_to_list(it['author'])
-	return [values, entries.keys(), orig]
+	return [values, orig]
 
-def save_bibnote(filename, db, orig, keys):
+def save_bibnote(filename, db, orig):
 	'''Save in bibnote format
 	'''
-	# prepare
+	# prepare to proper format
 	swap_key(db, 'id', 'key')
 	for it in db:
 		it['author'] = list_to_authors(it['author'])
-	entries = dict(zip(keys, db))
-	orig['bibliography'] = entries
+	# reconstruct dictionary
+	max_count = max([int(x['count']) for x in db if 'count' in x.keys()])
+	entries = {}
+	for it in db:
+		if 'count' in it.keys():
+			entries[it['count']] = it
+		else:
+			max_count = max_count + 1
+			it['count'] = str(max_count)
+			entries[str(max_count)] = it
+			verbose('added entry with count=%s'%max_count)
 	# save
+	orig['bibliography'] = entries
 	text = json.dumps(orig,indent=4)
 	with open(filename,'w') as f:
 		f.write(text)
@@ -190,7 +200,6 @@ def search_crossref(db):
 			# get bibtex from doi.org
 			request = urllib2.Request(doi,headers={'Accept': 'text/bibliography; style=bibtex'})
 			bibtex = urllib2.urlopen(request).read()
-			print bibtex
 			it = bibtex2dict(bibtex)
 			print json.dumps(it, indent=4)
 			format_bibitem(it)
@@ -204,7 +213,6 @@ def search_crossref(db):
 			print '[%d]\t%s'%(m,x['fullCitation'])
 			m+=1
 	return ''
-
 
 #
 # main program
@@ -229,7 +237,7 @@ if __name__ == "__main__":
 		config = load_config(expanduser('~/.bibliorc'))
 		verbose('Bibliography file: %s'%config['file'])
 		if config['ending'] == '.bibnote':
-			[db, keys, orig] = load_bibnote(config['file'])
+			[db, orig] = load_bibnote(config['file'])
 		else:
 			db = load(config['file'])
 		verbose('Loaded %d items from file'%len(db))
@@ -262,7 +270,7 @@ if __name__ == "__main__":
 
 		if tobesaved == True:
 			if config['ending'] == '.bibnote':
-				save_bibnote(config['file'],db,orig,keys)
+				save_bibnote(config['file'],db,orig)
 			else:
 				save(config['file'], db)
 
